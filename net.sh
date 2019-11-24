@@ -27,6 +27,8 @@ iwlist $interface scan | grep 'Frequency:\|Quality=\|Encryption\|ESSID:' | sed "
 echo -e ""
 read -p "ESSID : " essid;
 read -p "Pass  : " pass;
+echo -e ""
+echo -e "$red //$white Connecting ..."
 if [ $pass == '' ]
 then
     iwconfig $interface essid "$essid"
@@ -35,4 +37,10 @@ else
     wpa_passphrase $essid $pass > ~/.config/wpa/$essid.conf
     wpa_supplicant -B -i $interface -c ~/.config/wpa/$essid.conf -D wext
     dhcpcd $interface
+fi
+wget -q --tries=10 --timeout=20 --spider http://google.com
+if [[ $? -eq 0 ]]; then
+        echo -e "$okegreen **$white Connected"
+else
+        echo -e "$red !!$white Not Connected"
 fi
