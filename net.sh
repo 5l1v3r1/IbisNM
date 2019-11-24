@@ -34,8 +34,8 @@ then
     iwconfig $interface essid "$essid"
     dhcpcd $interface
 else
-    wpa_passphrase $essid $pass > ~/.config/wpa/$essid.conf
-    wpa_supplicant -B -i $interface -c ~/.config/wpa/$essid.conf -D wext
+    wpa_passphrase "$essid" $pass > ~/.config/wpa/ssid.conf
+    wpa_supplicant -B -i $interface -c ~/.config/wpa/ssid.conf -D wext
     dhcpcd $interface
 fi
 wget -q --tries=10 --timeout=20 --spider http://google.com
@@ -44,3 +44,4 @@ if [[ $? -eq 0 ]]; then
 else
         echo -e "$red !!$white Not Connected"
 fi
+rm -rf ~/.config/wpa/ssid.conf
