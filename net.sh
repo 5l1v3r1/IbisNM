@@ -64,7 +64,27 @@ then
     rm -rf ~/.config/wpa/ssid.conf
 elif [ $act == 'disconnect' ]
 then
-    echo ''
+    ssid=`iwconfig wlan0 | grep ESSID | awk '{print $4}' | sed "s/ESSID://"`
+    if [ $ssid == 'off/any' ]
+    then
+        echo -e "$red //$white Disconnecting ..."
+        killall wpa_supplicant
+        echo -e "$red //$white Done"
+    else
+        echo -e "$okegreen **$white You are connected to $ssid"
+        read -p " Do you really want to disconnect (y/N) ? " yn;
+        if [ $yn == 'y' ] || [ $yn == 'Y' ]
+        then
+            echo -e "$red //$white Disconnecting ..."
+            killall wpa_supplicant
+            echo -e "$red //$white Done"
+        elif [ $yn == 'n' ] || [ $yn == 'N' ]
+        then
+            echo -e "$red //$white Cancelling ..."
+        else
+            echo -e "$yellow !!$white Aborting ..."
+        fi
+    fi
 elif [ $act == 'status' ]
 then
     ssid=`iwconfig wlan0 | grep ESSID | awk '{print $4}' | sed "s/ESSID://"`
