@@ -13,39 +13,108 @@ if [ ! -d ~/.config/wpa ]; then
 	mkdir ~/.config/wpa
 fi
 
-echo -e "$white         ______    _      $red _   ____  ___"
-echo -e "$white        /  _/ /_  (_)____$red / | / /  |/  /"
-echo -e "$white        / // __ \/ / ___/$red   |/ / /|_/ / "
-echo -e "$white      _/ // /_/ / (__  )$red  /|  / /  / /  "
-echo -e "$white     /___/_.___/_/____/$red _/ |_/_/  /_/   "
-echo -e ""
-echo -e "$white       Ibis-Linux_ Network Manager"
-echo -e ""
-read -p " NM : " act;
-if [ $act == 'connect' ]
-then
+readinput(){
+    read -p " Command : " act;
+    if [[ $type == 'wifi' ]]; then
+        if [[ $act == 'connect' ]]; then
+            connect_wifi
+        elif [[ $act == 'disconnect' ]]; then
+            disconnect_wifi
+        elif [[ $act == 'status' ]]; then
+            wifi_status
+        else
+            readinput
+        fi
+    elif [[ $type == 'eth' ]]; then
+        if [[ $act == 'connect' ]]; then
+            connect_ethernet
+        elif [[ $act == 'disconnect' ]]; then
+            disconnect_ethernet
+        elif [[ $act == 'status' ]]; then
+            ethernet_status
+        else
+            readinput
+        fi
+    fi
+}
+
+banner(){
+    clear
+    echo -e ""
+    echo -e "$white         ______    _      $red _   ____  ___"
+    echo -e "$white        /  _/ /_  (_)____$red / | / /  |/  /"
+    echo -e "$white        / // __ \/ / ___/$red   |/ / /|_/ / "
+    echo -e "$white      _/ // /_/ / (__  )$red  /|  / /  / /  "
+    echo -e "$white     /___/_.___/_/____/$red _/ |_/_/  /_/   "
+    echo -e ""
+    echo -e "$white       Ibis-Linux_ Network Manager"
+}
+
+main_input(){
+    echo -e ""
+    read -p " Ethernet / Wifi (eth/wifi) ? " type;
+    banner
+    echo -e ""
+    echo -e "$okegreen **$white Available interface :"
+    echo -e ""
+    ifconfig -a | grep Link | awk '{print $1}'
+    echo -e ""
     read -p " Interface : " interface;
+    main_menu
+}
+
+main_menu(){
+    banner
+    echo -e ""
+    echo -e "$cyan connect$yellow      |$white   Connect to network"
+    echo -e "$cyan disconnect$yellow   |$white   Disconnect from network"
+    echo -e "$cyan status$yellow       |$white   Connection status"
+    echo -e ""
+    readinput
+}
+
+connect_wifi(){
     ifconfig $interface up
+    banner
+    echo -e ""
+    echo -e "$okegreen **$white Available wifi : "
+    echo -e ""
     iwlist $interface scan | grep 'Frequency:\|Quality=\|Encryption\|ESSID:' | sed "s/=/:/" | sed "s/                    //" | sed "s/Signal level=/\nSignal:/" | sed "s/ (Channel /\nChannel:/" | sed "s/)//" | sed "s/Frequency:/\nFrequency:/"
     echo -e ""
     read -p " ESSID : " essid;
     read -p " Pass  : " pass;
     echo -e ""
-    if [ $pass == '' ]
-    then
-        echo -e "$red //$white Connecting to $essid ..."
-        iwconfig $interface essid "$essid"
-        echo -e "$red //$white Authenticating ..."
-        dhcpcd $interface
+    if [[ $pass == '' ]]; then
+        connect_open_wifi
     else
-        echo -e "$red //$white Creating wpa_passhrase config ..."
-        wpa_passphrase "$essid" $pass > ~/.config/wpa/ssid.conf
-        echo -e "$red //$white Connecting to $essid ..."
-        wpa_supplicant -B -i $interface -c ~/.config/wpa/ssid.conf -D wext
-        echo -e "$red //$white Authenticating ..."
-        dhcpcd $interface
+        connect_secure_wifi
     fi
-    ip=`ifconfig $interface | grep 'inet ' | awk '{print $2}'`
+}
+
+connect_open_wifi(){
+    banner
+    echo -e ""
+    echo -e "$red //$white Connecting to $essid ..."
+    iwconfig $interface essid "$essid"
+    echo -e "$red //$white Authenticating ..."
+    dhcpcd $interface
+    check_connection
+}
+
+connect_secure_wifi(){
+    banner
+    echo -e ""
+    echo -e "$red //$white Creating wpa_passhrase config ..."
+    wpa_passphrase "$essid" "$pass" > ~/.config/wpa/ssid.conf
+    echo -e "$red //$white Connecting to $essid ..."
+    wpa_supplicant -B -i $interface -c ~/.config/wpa/ssid.conf -D wext
+    echo -e "$red //$white Authenticating ..."
+    dhcpcd $interface
+    check_connection
+}
+
+check_connection(){
+    ip=`ifconfig $interface | grep 'inet addr' | sed "s/addr:/addr /" | awk '{print $3}'`
     if [ $ip == '' ]
     then
         echo -e "$yellow !!$white Cannot obtain IP Address"
@@ -61,10 +130,12 @@ then
     else
         echo -e "$yellow !!$white Not Connected to Internet"
     fi
-    rm -rf ~/.config/wpa/ssid.conf
-elif [ $act == 'disconnect' ]
-then
-    ssid=`iwconfig wlan0 | grep ESSID | awk '{print $4}' | sed "s/ESSID://"`
+}
+
+disconnect_wifi(){
+    banner
+    echo -e ""
+    ssid=`iwconfig $interface | grep ESSID | awk '{print $4$5$6}' | sed "s/ESSID://"`
     if [ $ssid == 'off/any' ]
     then
         echo -e "$red //$white Disconnecting ..."
@@ -85,29 +156,49 @@ then
             echo -e "$yellow !!$white Aborting ..."
         fi
     fi
-elif [ $act == 'status' ]
-then
-    ssid=`iwconfig wlan0 | grep ESSID | awk '{print $4}' | sed "s/ESSID://"`
+}
+
+wifi_status(){
+    banner
+    echo -e ""
+    ssid=`iwconfig $interface | grep ESSID | awk '{print $4$5$6}' | sed "s/ESSID://"`
     if [ $ssid == 'off/any' ]
     then
         echo -e "$yellow !!$white Not Connected to any routers"
     else
-        ip=`ifconfig $interface | grep 'inet ' | awk '{print $2}'`
+        ip=`ifconfig $interface | grep 'inet addr' | sed "s/addr:/addr /" | awk '{print $3}'`
         echo -e "$okegreen **$white Connected to $ssid"
         echo -e "$okegreen **$white Your IP : $ip"
     fi
-elif [ $act == 'exit' ]
-then
-    echo -e "$yellow !!$white Exitting"
-    exit
-else
     echo -e ""
-    echo -e "$yellow !!$white Command $act not found"
-    echo -e "$red //$white Available commands :"
+}
+
+connect_ethernet(){
+    banner
     echo -e ""
-    echo -e "$yellow    ->$white connect"
-    echo -e "$yellow    ->$white disconnect"
-    echo -e "$yellow    ->$white status"
-    echo -e "$yellow    ->$white exit"
+    echo -e "$red //$white Connecting ..."
+    dhcpcd $interface
+    check_connection
+}
+
+disconnect_ethernet(){
+    banner
     echo -e ""
-fi
+    echo -e "$red //$white Just plug out your ethernet cable"
+    echo -e ""
+}
+
+ethernet_status(){
+    banner
+    echo -e ""
+    ip=`ifconfig $interface | grep 'inet addr' | sed "s/addr:/addr /" | awk '{print $3}'`
+    if [[ $ip == '' ]]; then
+        echo -e "$yellow !!$white Not Connected to any Ethernet"
+    else
+        echo -e "$okegreen **$white Connected to Ethernet"
+        echo -e "$okegreen **$white Your IP : $ip"
+    fi
+}
+
+banner
+main_input
